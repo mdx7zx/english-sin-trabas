@@ -49,6 +49,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const { progress } = useProgress();
+  const currentLevelXp = progress.xp % 1000;
+  const xpToNextLevel = 1000 - currentLevelXp;
 
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[252px_1fr]">
@@ -83,8 +85,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <span>Nivel {progress.level}</span>
             <span className="text-lime">{progress.xp} XP</span>
           </div>
-          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/15"><div className="h-full w-[68%] rounded-full bg-lime" /></div>
-          <p className="mt-2 text-[11px] text-white/55">320 XP para tu siguiente nivel</p>
+          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/15"><div className="h-full rounded-full bg-lime" style={{ width: `${currentLevelXp / 10}%` }} /></div>
+          <p className="mt-2 text-[11px] text-white/55">{xpToNextLevel} XP para tu siguiente nivel</p>
         </div>
       </aside>
 

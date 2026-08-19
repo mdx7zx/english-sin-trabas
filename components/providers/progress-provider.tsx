@@ -12,7 +12,8 @@ function storageKey(userId: string | null) {
   return userId ? `${STORAGE_KEY}.${userId}` : STORAGE_KEY;
 }
 
-const initialProgress: UserProgress = {
+const demoProgress: UserProgress = {
+  dataVersion: 1,
   name: "Alex",
   level: 1,
   xp: 680,
@@ -70,6 +71,32 @@ const initialProgress: UserProgress = {
   ],
   diagnosticCompleted: false,
   diagnosticFocus: [],
+  studyDates: [],
+};
+
+const initialProgress: UserProgress = {
+  dataVersion: 2,
+  name: "Estudiante",
+  level: 1,
+  xp: 0,
+  streak: 0,
+  minutes: 0,
+  wordsLearned: 0,
+  verbsMastered: 0,
+  exercisesCompleted: 0,
+  correctedErrors: 0,
+  completedLessons: [],
+  skillScores: {
+    grammar: 0,
+    listening: 0,
+    speaking: 0,
+    writing: 0,
+    reading: 0,
+  },
+  mistakes: [],
+  diagnosticCompleted: false,
+  diagnosticFocus: [],
+  studyDates: [],
 };
 
 type ProgressContextValue = {
@@ -178,8 +205,9 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
       const nextXp = current.xp + xp;
       return {
         ...current,
+        ...studyDayUpdate(current),
         xp: nextXp,
-        level: Math.max(current.level, Math.floor(nextXp / 500)),
+        level: Math.floor(nextXp / 1000) + 1,
         minutes: current.minutes + minutes,
         completedLessons: current.completedLessons.includes(lessonId) ? current.completedLessons : [...current.completedLessons, lessonId],
       };
@@ -190,9 +218,12 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
     setProgress((current) => {
       const skill = exercise.kind === "listen" ? "listening" : exercise.kind === "speak" ? "speaking" : "grammar";
       if (correct) {
+        const nextXp = current.xp + 5;
         return {
           ...current,
-          xp: current.xp + 5,
+          ...studyDayUpdate(current),
+          xp: nextXp,
+          level: Math.floor(nextXp / 1000) + 1,
           exercisesCompleted: current.exercisesCompleted + 1,
           skillScores: { ...current.skillScores, [skill]: Math.min(100, current.skillScores[skill] + 1) },
         };
@@ -221,22 +252,28 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
             ...current.mistakes,
           ];
 
-      return { ...current, exercisesCompleted: current.exercisesCompleted + 1, mistakes };
+      return { ...current, ...studyDayUpdate(current), exercisesCompleted: current.exercisesCompleted + 1, mistakes };
     });
   }, []);
 
   const completeDiagnostic = useCallback((score: number, focus: string[]) => {
-    setProgress((current) => ({
-      ...current,
-      diagnosticCompleted: true,
-      diagnosticFocus: focus,
-      xp: current.xp + Math.max(10, score * 3),
-    }));
+    setProgress((current) => {
+      const nextXp = current.xp + Math.max(10, score * 3);
+      return {
+        ...current,
+        ...studyDayUpdate(current),
+        diagnosticCompleted: true,
+        diagnosticFocus: focus,
+        xp: nextXp,
+        level: Math.floor(nextXp / 1000) + 1,
+      };
+    });
   }, []);
 
   const markMistakePracticed = useCallback((id: string) => {
     setProgress((current) => ({
       ...current,
+      ...studyDayUpdate(current),
       correctedErrors: current.correctedErrors + 1,
       mistakes: current.mistakes.map((item) =>
         item.id === id ? { ...item, status: "learning" as const } : item,
@@ -271,15 +308,47 @@ function writeLocalProgress(key: string, progress: UserProgress) {
 
 function normalizeProgress(value: unknown): UserProgress {
   if (!value || typeof value !== "object") return initialProgress;
-  const saved = value as Partial<UserProgress>;
+  const saved = migrateDemoProgress(value as Partial<UserProgress>);
 
   return {
     ...initialProgress,
     ...saved,
+    dataVersion: initialProgress.dataVersion,
     skillScores: { ...initialProgress.skillScores, ...(saved.skillScores ?? {}) },
     completedLessons: Array.isArray(saved.completedLessons) ? saved.completedLessons : initialProgress.completedLessons,
     mistakes: Array.isArray(saved.mistakes) ? saved.mistakes : initialProgress.mistakes,
     diagnosticFocus: Array.isArray(saved.diagnosticFocus) ? saved.diagnosticFocus : initialProgress.diagnosticFocus,
+    studyDates: Array.isArray(saved.studyDates) ? saved.studyDates : initialProgress.studyDates,
+  };
+}
+
+function migrateDemoProgress(saved: Partial<UserProgress>): Partial<UserProgress> {
+  if ((saved.dataVersion ?? 1) >= initialProgress.dataVersion) return saved;
+
+  const xp = Math.max(0, (saved.xp ?? demoProgress.xp) - demoProgress.xp);
+  const skillKeys = Object.keys(demoProgress.skillScores) as Array<keyof UserProgress["skillScores"]>;
+  const skillScores = Object.fromEntries(
+    skillKeys.map((key) => [key, Math.max(0, (saved.skillScores?.[key] ?? demoProgress.skillScores[key]) - demoProgress.skillScores[key])]),
+  ) as UserProgress["skillScores"];
+  const seededLessonIds = new Set(demoProgress.completedLessons);
+  const seededMistakeIds = new Set(demoProgress.mistakes.map((mistake) => mistake.id));
+
+  return {
+    ...saved,
+    dataVersion: initialProgress.dataVersion,
+    name: saved.name === demoProgress.name ? initialProgress.name : saved.name,
+    level: Math.floor(xp / 1000) + 1,
+    xp,
+    streak: 0,
+    minutes: Math.max(0, (saved.minutes ?? demoProgress.minutes) - demoProgress.minutes),
+    wordsLearned: Math.max(0, (saved.wordsLearned ?? demoProgress.wordsLearned) - demoProgress.wordsLearned),
+    verbsMastered: Math.max(0, (saved.verbsMastered ?? demoProgress.verbsMastered) - demoProgress.verbsMastered),
+    exercisesCompleted: Math.max(0, (saved.exercisesCompleted ?? demoProgress.exercisesCompleted) - demoProgress.exercisesCompleted),
+    correctedErrors: Math.max(0, (saved.correctedErrors ?? demoProgress.correctedErrors) - demoProgress.correctedErrors),
+    completedLessons: (saved.completedLessons ?? demoProgress.completedLessons).filter((id) => !seededLessonIds.has(id)),
+    skillScores,
+    mistakes: (saved.mistakes ?? demoProgress.mistakes).filter((mistake) => !seededMistakeIds.has(mistake.id)),
+    studyDates: [],
   };
 }
 
@@ -301,3 +370,26 @@ export const categoryLabels: Record<ErrorCategory, string> = {
   listening: "Listening",
   vocabulary: "Vocabulario",
 };
+
+function dateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function studyDayUpdate(progress: UserProgress): Pick<UserProgress, "streak" | "studyDates"> {
+  const today = dateKey(new Date());
+  if (progress.studyDates.includes(today)) {
+    return { streak: progress.streak, studyDates: progress.studyDates };
+  }
+
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const continued = progress.studyDates.includes(dateKey(yesterday));
+
+  return {
+    streak: continued ? progress.streak + 1 : 1,
+    studyDates: [...progress.studyDates, today],
+  };
+}

@@ -82,6 +82,7 @@ export type Mistake = {
 };
 
 export type UserProgress = {
+  dataVersion: number;
   name: string;
   level: number;
   xp: number;
@@ -96,4 +97,5 @@ export type UserProgress = {
   mistakes: Mistake[];
   diagnosticCompleted: boolean;
   diagnosticFocus: string[];
+  studyDates: string[];
 };

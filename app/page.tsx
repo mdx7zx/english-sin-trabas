@@ -39,10 +39,24 @@ const skillMeta = [
   { key: "grammar" as const, label: "Grammar", color: "forest" as const },
 ];
 
+function localDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export default function DashboardPage() {
   const { progress } = useProgress();
   const recommended = lessons.find((lesson) => !progress.completedLessons.includes(lesson.id)) ?? lessons[0];
-  const weeklyValues = [42, 68, 30, 82, 57, 94, 64];
+  const today = new Date();
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+  const weeklyValues = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(monday);
+    date.setDate(monday.getDate() + index);
+    return progress.studyDates.includes(localDateKey(date)) ? 92 : 0;
+  });
 
   return (
     <div className="animate-rise space-y-6">
